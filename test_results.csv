@@ -1,0 +1,53 @@
+request_id,request_date,cash_balance,inventory_value,response
+1,2025-04-01,45059.7,4940.299999999999,"The orders for the paper supplies have been successfully placed, but the estimated delivery dates are in January 2026, which does not meet the requested delivery date of April 15, 2025. Please advise if you would like to seek alternative solutions or escalate this issue to expedite the order."
+2,2025-04-03,45059.7,4940.299999999999,"All orders were successfully placed: 
+ - Colorful poster paper (Order ID 23), expected delivery on January 29, 2026.
+ - Roll of streamers (Order ID 24), expected delivery on January 29, 2026.
+ - Balloons (Order ID 25), expected delivery on January 29, 2026.
+Important: The delivery dates do not meet the requested deadline of April 15, 2025. Further actions may be needed to address this discrepancy."
+3,2025-04-04,45059.7,4940.299999999999,"Orders placed successfully:
+- A4 paper sheets: ORDER_SUCCESS: ID 26. Estimated delivery on 2026-02-01.
+- A3 paper sheets: ORDER_SUCCESS: ID 27. Estimated delivery on 2026-02-01.
+- Printer paper reams: ORDER_SUCCESS: ID 28. Estimated delivery on 2026-01-29."
+4,2025-04-05,45059.7,4940.299999999999,"The orders for recycled cardstock and A4 printer paper were placed successfully. However, the delivery date of January 29, 2026, does not meet the requested deadline of April 15, 2025. It is advisable to contact the supplier to discuss possibilities for expedited delivery."
+5,2025-04-05,45059.7,4940.299999999999,"Your order has been successfully placed, but the estimated time of arrival is January 29, 2026, which is later than your requested delivery date. Please let us know if you would like to proceed with these orders or explore alternative solutions."
+6,2025-04-06,45059.7,4940.299999999999,"The orders for colorful construction paper, white printer paper, and cardstock in various colors have been placed successfully. However, the ETA for all items is January 29, 2026, much later than the required delivery date of April 15, 2025. We need to look for alternative suppliers or expedited shipping options."
+7,2025-04-07,45059.7,4940.299999999999,"All the items have been successfully ordered with the following details: 
+- Glossy A4 Paper: Order ID 37, ETA: 2026-01-29
+- Matte A3 Paper: Order ID 38, ETA: 2026-01-29
+- Poster Boards 24x36: Order ID 39, ETA: 2026-01-29
+- Heavyweight Cardstock: Order ID 40, ETA: 2026-01-29
+Please note the delivery dates are beyond the initial requested date of April 15, 2025."
+8,2025-04-07,45059.7,4940.299999999999,"All orders for paper supplies placed successfully, but the expected delivery dates are beyond the requested date. Here are the details: 
+- A4 glossy paper: ETA 2026-01-29 (Order ID: 41) 
+- A4 matte paper: ETA 2026-01-29 (Order ID: 42) 
+- A5 colored paper: ETA 2026-02-01 (Order ID: 43) 
+- A4 recycled paper: ETA 2026-02-01 (Order ID: 44) 
+Unfortunately, this means the supplies will not arrive in time for the ceremony planned on April 15, 2025."
+9,2025-04-07,45059.7,4940.299999999999,"Orders have been successfully placed with the following ETAs:
+- A4 white printer paper (Order ID 45) with ETA: 2026-01-29
+- A3 glossy paper (Order ID 46) with ETA: 2026-01-26
+- 100% recycled kraft paper envelopes (Order ID 47) with ETA: 2026-01-26
+
+Please note that the ETAs do not meet the initially requested delivery date of April 10, 2025."
+13,2025-04-08,45059.7,4940.299999999999,"The orders for both A4 printing paper and cardstock have been successfully placed. However, the estimated delivery date is January 29, 2026, which does not meet your requested delivery date of April 10, 2025. Please consider contacting the supplier directly to discuss expedited shipping options or alternative solutions."
+12,2025-04-08,45059.7,4940.299999999999,"The orders for the party supplies have been successfully placed with the respective ETA dates as follows:
+- Colorful Cardstock: ETA - January 29, 2026.
+- Standard Printer Paper: ETA - January 29, 2026.
+- Paper Napkins: ETA - January 26, 2026.
+
+Please note, these dates do not meet the requested delivery date of April 15, 2025. Additional arrangements may be necessary."
+10,2025-04-08,45059.7,4940.299999999999,"Orders for high-quality glossy paper and sturdy cardstock have been placed successfully. However, the expected delivery date is January 29, 2026, which does not meet the required deadline of April 15, 2025. It is recommended to contact the supplier directly to discuss modifying the delivery date or explore alternative options."
+11,2025-04-08,45059.7,4940.299999999999,"The order for 400 sheets of A3 glossy paper was placed successfully, but the ETA is January 29, 2026, which does not meet our required delivery date of April 15, 2025. It is advisable to seek expedited delivery options or an alternate supplier to fulfill the exhibition needs on time."
+14,2025-04-09,45059.7,4940.299999999999,"The order has been successfully placed with the following details:
+- A4 paper: Order ID 56, Estimated Arrival: February 1, 2026
+- Poster paper: Order ID 57, Estimated Arrival: February 1, 2026
+- Cardstock: Order ID 58, Estimated Arrival: January 29, 2026
+
+Please note, the estimated delivery dates are significantly later than the requested delivery date of April 15, 2025. Kindly consider if these terms are acceptable or if further adjustments are needed."
+15,2025-04-12,45059.7,4940.299999999999,"The orders for paper supplies have been placed successfully, but the estimated arrival times are in early 2026, which does not meet the required delivery deadline of April 15, 2025."
+16,2025-04-13,45059.7,4940.299999999999,"The orders for A4 printer paper and poster board have been placed successfully; however, the estimated delivery dates are in January 2026, which does not meet our required delivery date of April 15, 2025."
+17,2025-04-14,45059.7,4940.299999999999,"Unfortunately, the orders placed for the required paper supplies have ETAs that far exceed the desired delivery date of April 15, 2025. Alternatives need to be considered or expect significant delays."
+18,2025-04-14,45059.7,4940.299999999999,"Unable to meet the requested delivery date of April 15, 2025, as the ETA for all ordered paper supplies is January 29, 2026."
+19,2025-04-15,45059.7,4940.299999999999,"The orders for A4 glossy paper, A3 matte paper, and cardstock assorted colors are successfully placed but will not arrive in time for the deadline of April 20, 2025. Delivery is estimated in early 2026."
+20,2025-04-17,45059.7,4940.299999999999,"The orders for flyers, posters, and tickets have been successfully placed with an order ETA of February 1, 2026. Unfortunately, this does not meet the requested delivery deadline of May 15, 2025, for timely distribution and promotion of the concert."
