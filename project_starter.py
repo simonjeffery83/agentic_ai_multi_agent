@@ -580,164 +580,358 @@ def search_quote_history(search_terms: List[str], limit: int = 5) -> List[Dict]:
         result = conn.execute(text(query), params)
         return [dict(row._mapping) for row in result]
 
-# Set up and load your env parameters and instantiate your model.
 
+import json
+from openai import OpenAI
+import pandas as pd
+from datetime import datetime
 
-"""Set up tools for your agents to use, these should be methods that combine the database functions above
- and apply criteria to them to ensure that the flow of the system is correct."""
+# ---------------------------------------------------------
+# 1. SETUP & TOOL DEFINITIONS
+# ---------------------------------------------------------
 
+client = OpenAI()
 
-# Tools for inventory agent
-# Tools for quoting agent
-# Tools for ordering agent
-from smolagents import Tool, CodeAgent, LiteLLMModel
+def get_stock_level_tool(item_name: str):
+    """Wrapper for get_stock_level to return a clean string."""
+    try:
+        # Use a query that calculates net stock (Orders - Sales)
+        query = f"""
+        SELECT 
+            (SELECT COALESCE(SUM(units),0) FROM transactions WHERE item_name='{item_name}' AND transaction_type='stock_orders') -
+            (SELECT COALESCE(SUM(units),0) FROM transactions WHERE item_name='{item_name}' AND transaction_type='sales') 
+        as current_stock
+        """
+        df = pd.read_sql(query, db_engine)
+        stock = int(df.iloc[0]['current_stock']) if not df.empty and df.iloc[0]['current_stock'] is not None else 0
+        return str(stock)
+    except Exception as e:
+        return f"Error checking stock: {str(e)}"
 
-# --- 1. Inventory Tool ---
-class CheckInventoryTool(Tool):
-    name = "check_inventory"
-    description = "Checks the current stock level for a specific paper item as of today."
-    inputs = {
-        "item_name": {"type": "string", "description": "The exact name of the paper item."}
-    }
-    output_type = "string"
+def get_all_inventory_tool():
+    """Wrapper to return all inventory as JSON string."""
+    try:
+        report = {}
+        for item in paper_supplies:
+            name = item['item_name']
+            stock = get_stock_level_tool(name)
+            report[name] = int(stock)
+        return json.dumps(report)
+    except Exception as e:
+        return f"Error getting inventory: {str(e)}"
 
-    def forward(self, item_name: str) -> str:
-        res = get_stock_level(item_name, datetime.now())
-        stock = res['current_stock'].iloc[0]
-        return f"Item: {item_name} | Stock: {stock}"
+def get_delivery_date_tool(item_name: str, quantity: int):
+    """Wrapper for delivery date."""
+    try:
+        return get_supplier_delivery_date(datetime.now().isoformat(), quantity)
+    except Exception as e:
+        return f"Error calculating date: {str(e)}"
 
-# --- 2. Quote History Tool ---
-class SearchHistoryTool(Tool):
-    name = "search_quote_history"
-    description = "Searches past quotes to help determine pricing for new requests."
-    inputs = {
-        "search_term": {"type": "string", "description": "Keyword to search in past requests."}
-    }
-    output_type = "string"
-
-    def forward(self, search_term: str) -> str:
-        history = search_quote_history([search_term], limit=2)
-        return str(history)
-
-# --- 3. Supplier Order Tool ---
-class PlaceOrderTool(Tool):
-    name = "place_supplier_order"
-    description = "Orders stock from a supplier. Requires checking cash balance first."
-    inputs = {
-        "item_name": {"type": "string", "description": "Name of item to buy."},
-        "quantity": {"type": "integer", "description": "Number of units."},
-        "unit_cost": {"type": "number", "description": "Cost per unit from supplier."}
-    }
-    output_type = "string"
-
-    def forward(self, item_name: str, quantity: int, unit_cost: float) -> str:
-        total = quantity * unit_cost
-        cash = get_cash_balance(datetime.now())
-        if cash < total:
-            return f"REJECTED: Insufficient cash. Have ${cash}, need ${total}."
+def search_history_tool(item_name: str):
+    """Wrapper for search_quote_history."""
+    try:
+        results = search_quote_history([item_name], limit=3)
+        if not results:
+            return "No past quotes found."
+        return json.dumps(results)
+    except Exception as e:
+        return f"Error searching history: {str(e)}"
         
-        tx_id = create_transaction(item_name, "stock_orders", quantity, total, datetime.now())
-        eta = get_supplier_delivery_date(datetime.now().isoformat(), quantity)
-        return f"ORDER_SUCCESS: ID {tx_id}. ETA: {eta}."
+def create_transaction_tool(item_name: str, transaction_type: str, quantity: int, price: float, date: str):
+    """Wrapper for create_transaction."""
+    try:
+        tid = create_transaction(item_name, transaction_type, quantity, price, date)
+        return f"Transaction Successful. ID: {tid}"
+    except Exception as e:
+        return f"Transaction Failed: {str(e)}"
 
+def get_cash_tool():
+    """Wrapper for get_cash_balance."""
+    try:
+        bal = get_cash_balance(datetime.now())
+        return f"{bal:.2f}"
+    except Exception as e:
+        return "Error retrieving cash balance."
 
-# Set up your agents and create an orchestration agent that will manage them.
-# Initialize the model (using OpenAI via LiteLLM)
-model = LiteLLMModel(model_id="gpt-4-turbo")
+def generate_report_tool():
+    """Wrapper for financial report."""
+    try:
+        rep = generate_financial_report(datetime.now())
+        return f"Cash: ${rep['cash_balance']:.2f}, Inventory Value: ${rep['inventory_value']:.2f}"
+    except Exception as e:
+        return "Error generating report."
 
-# Create the agent with our tools
-munder_difflin_agent = CodeAgent(
-    tools=[CheckInventoryTool(), SearchHistoryTool(), PlaceOrderTool()],
-    model=model,
-    add_base_tools=True # Adds useful defaults like search or image gen if needed
+# --- Tool Schemas for OpenAI ---
+
+inventory_tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_level",
+            "description": "Check current stock quantity for an item.",
+            "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}}, "required": ["item_name"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_all_inventory",
+            "description": "Get a list of all items and their stock levels.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_supplier_delivery_date",
+            "description": "Calculate estimated delivery date for a restocking order.",
+            "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["item_name", "quantity"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_transaction",
+            "description": "Place a STOCK ORDER (buy from supplier). Transaction type must be 'stock_orders'.",
+            "parameters": {
+                "type": "object", 
+                "properties": {
+                    "item_name": {"type": "string"}, 
+                    "transaction_type": {"type": "string", "enum": ["stock_orders"]}, 
+                    "quantity": {"type": "integer"}, 
+                    "price": {"type": "number"}, 
+                    "date": {"type": "string"}
+                }, 
+                "required": ["item_name", "transaction_type", "quantity", "price", "date"]
+            }
+        }
+    }
+]
+
+quoting_tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_quote_history",
+            "description": "Search past quotes for pricing reference.",
+            "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}}, "required": ["item_name"]}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_level",
+            "description": "Check if stock exists for a quote.",
+            "parameters": {"type": "object", "properties": {"item_name": {"type": "string"}}, "required": ["item_name"]}
+        }
+    }
+]
+
+sales_tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_transaction",
+            "description": "Finalize a SALE. Transaction type must be 'sales'.",
+            "parameters": {
+                "type": "object", 
+                "properties": {
+                    "item_name": {"type": "string"}, 
+                    "transaction_type": {"type": "string", "enum": ["sales"]}, 
+                    "quantity": {"type": "integer"}, 
+                    "price": {"type": "number"}, 
+                    "date": {"type": "string"}
+                }, 
+                "required": ["item_name", "transaction_type", "quantity", "price", "date"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_cash_balance",
+            "description": "Check available cash.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_financial_report",
+            "description": "Get a financial summary.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    }
+]
+
+# ---------------------------------------------------------
+# 2. AGENT CLASSES
+# ---------------------------------------------------------
+
+class BaseAgent:
+    def __init__(self, client, name, instructions, tools):
+        self.client = client
+        self.name = name
+        self.instructions = instructions
+        self.tools = tools
+        self.model = "gpt-4o"
+
+    def execute(self, message):
+        messages = [
+            {"role": "system", "content": self.instructions},
+            {"role": "user", "content": message}
+        ]
+        
+        # 1. Initial Call
+        response = self.client.chat.completions.create(
+            model=self.model, messages=messages, tools=self.tools, tool_choice="auto"
+        )
+        
+        response_message = response.choices[0].message
+        tool_calls = response_message.tool_calls
+        
+        # 2. Tool Execution Loop
+        if tool_calls:
+            messages.append(response_message)
+            
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments)
+                result = "Error: Unknown tool"
+                
+                # Map tool names to wrapper functions
+                if function_name == "get_stock_level":
+                    result = get_stock_level_tool(args.get('item_name'))
+                elif function_name == "get_all_inventory":
+                    result = get_all_inventory_tool()
+                elif function_name == "get_supplier_delivery_date":
+                    result = get_delivery_date_tool(args.get('item_name'), args.get('quantity'))
+                elif function_name == "search_quote_history":
+                    result = search_history_tool(args.get('item_name'))
+                elif function_name == "create_transaction":
+                    result = create_transaction_tool(
+                        args.get('item_name'), args.get('transaction_type'), 
+                        args.get('quantity'), args.get('price'), args.get('date')
+                    )
+                elif function_name == "get_cash_balance":
+                    result = get_cash_tool()
+                elif function_name == "generate_financial_report":
+                    result = generate_report_tool()
+                
+                messages.append({
+                    "role": "tool", 
+                    "tool_call_id": tool_call.id, 
+                    "content": str(result)
+                })
+            
+            # 3. Final Response after tool outputs
+            final_response = self.client.chat.completions.create(
+                model=self.model, messages=messages
+            )
+            return final_response.choices[0].message.content
+            
+        return response_message.content
+
+class ManagerAgent:
+    def __init__(self, client):
+        self.client = client
+        self.model = "gpt-4o"
+
+    def route(self, text):
+        prompt = f"""
+        You are the Routing Manager. Analyze the request and route to:
+        - INVENTORY: For stock checks, buying supplies, or low stock alerts.
+        - QUOTING: For price checks, quotes, or history lookups.
+        - SALES: For finalizing sales, confirming orders, or financial reports.
+        
+        Request: "{text}"
+        Output only: INVENTORY, QUOTING, or SALES.
+        """
+        response = self.client.chat.completions.create(
+            model=self.model, 
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content.strip().upper()
+
+# ---------------------------------------------------------
+# 3. INITIALIZATION & EXECUTION LOOP
+# ---------------------------------------------------------
+catalog_text = "\n".join(
+    [f"- {item['item_name']}: ${item['unit_price']} per unit" for item in paper_supplies]
 )
 
-# Run your test scenarios by writing them here. Make sure to keep track of them.
-
 def run_test_scenarios():
-    
     print("Initializing Database...")
     init_database(db_engine)
-    try:
-        quote_requests_sample = pd.read_csv("quote_requests_sample.csv")
-        quote_requests_sample["request_date"] = pd.to_datetime(
-            quote_requests_sample["request_date"], format="%m/%d/%y", errors="coerce"
-        )
-        quote_requests_sample.dropna(subset=["request_date"], inplace=True)
-        quote_requests_sample = quote_requests_sample.sort_values("request_date")
-    except Exception as e:
-        print(f"FATAL: Error loading test data: {e}")
-        return
+    
+    # 2. Initialize Agents (Updated with Catalog)
 
-    # Get initial state
-    initial_date = quote_requests_sample["request_date"].min().strftime("%Y-%m-%d")
-    report = generate_financial_report(initial_date)
-    current_cash = report["cash_balance"]
-    current_inventory = report["inventory_value"]
+    inventory_agent = BaseAgent(client, "Inventory", 
+        "You are the Inventory Manager. Check stock levels. "
+        "If needed, buy supplies using 'create_transaction' with type='stock_orders'.", 
+        inventory_tools
+    )
 
-    ############
-    ############
-    ############
-    # INITIALIZE YOUR MULTI AGENT SYSTEM HERE
-    ############
-    ############
-    ############
+    # Update Quoting Agent to see the catalog
+    quoting_agent = BaseAgent(client, "Quoting", 
+        f"You are the Quoting Specialist. Use these standard prices for quotes:\n{catalog_text}\n"
+        "Check 'search_quote_history' for past deals. Check stock before quoting.", 
+        quoting_tools
+    )
+
+    # Update Sales Agent to see the catalog so it can calculate total price
+    sales_agent = BaseAgent(client, "Sales", 
+        f"You are the Sales Rep. Finalize sales using 'create_transaction' with type='sales'.\n"
+        f"CURRENT PRICE LIST:\n{catalog_text}\n"
+        "Calculate the total price (quantity * unit_price) automatically. Do not ask the user for prices.", 
+        sales_tools
+    )
+
+    manager = ManagerAgent(client)
+
+    # Load Requests from DB (populated by init_database)
+    requests_df = pd.read_sql("SELECT * FROM quote_requests", db_engine)
 
     results = []
-    for idx, row in quote_requests_sample.iterrows():
-        request_date = row["request_date"].strftime("%Y-%m-%d")
+    print("--- STARTING MULTI-AGENT BATCH PROCESSING ---")
 
-        print(f"\n=== Request {idx+1} ===")
-        print(f"Context: {row['job']} organizing {row['event']}")
-        print(f"Request Date: {request_date}")
-        print(f"Cash Balance: ${current_cash:.2f}")
-        print(f"Inventory Value: ${current_inventory:.2f}")
+    for index, row in requests_df.iterrows():
+        req_id = row['id']
+        req_text = row['response'] 
+        req_date = "2025-04-05"
+        
+        print(f"\nProcessing Request {req_id}: {req_text}")
 
-        # Process request
-        request_with_date = f"{row['request']} (Date of request: {request_date})"
+        # 1. Manager Routes
+        target = manager.route(req_text)
+        print(f" > Manager Routed to: {target}")
 
-        ############
-        ############
-        ############
-        # USE YOUR MULTI AGENT SYSTEM TO HANDLE THE REQUEST
-        ############
-        ############
-        ############
+        # 2. Agent Executes
+        agent_response = "No Action"
+        if "INVENTORY" in target:
+            agent_response = inventory_agent.execute(f"{req_text} (Date: {req_date})")
+        elif "QUOTING" in target:
+            agent_response = quoting_agent.execute(f"{req_text} (Date: {req_date})")
+        elif "SALES" in target:
+            agent_response = sales_agent.execute(f"{req_text} (Date: {req_date})")
 
-        # response = call_your_multi_agent_system(request_with_date)
-        response = munder_difflin_agent.run(request_with_date)
-        # Update state
-        report = generate_financial_report(request_date)
-        current_cash = report["cash_balance"]
-        current_inventory = report["inventory_value"]
+        print(f" > Agent Response: {agent_response}")
 
-        print(f"Response: {response}")
-        print(f"Updated Cash: ${current_cash:.2f}")
-        print(f"Updated Inventory: ${current_inventory:.2f}")
+        # 3. Capture Financial State
+        report = generate_financial_report(req_date)
+        
+        results.append({
+            "request_id": req_id,
+            "request_date": req_date,
+            "cash_balance": report['cash_balance'],
+            "inventory_value": report['inventory_value'],
+            "response": agent_response
+        })
 
-        results.append(
-            {
-                "request_id": idx + 1,
-                "request_date": request_date,
-                "cash_balance": current_cash,
-                "inventory_value": current_inventory,
-                "response": response,
-            }
-        )
-
-        time.sleep(1)
-
-    # Final report
-    final_date = quote_requests_sample["request_date"].max().strftime("%Y-%m-%d")
-    final_report = generate_financial_report(final_date)
-    print("\n===== FINAL FINANCIAL REPORT =====")
-    print(f"Final Cash: ${final_report['cash_balance']:.2f}")
-    print(f"Final Inventory: ${final_report['inventory_value']:.2f}")
-
-    # Save results
-    pd.DataFrame(results).to_csv("test_results.csv", index=False)
-    return results
-
+    # Save Results
+    results_df = pd.DataFrame(results)
+    results_df.to_csv("test_results.csv", index=False)
+    print("\nProcessing Complete. Results saved to test_results.csv")
 
 if __name__ == "__main__":
-    results = run_test_scenarios()
+    run_test_scenarios()
